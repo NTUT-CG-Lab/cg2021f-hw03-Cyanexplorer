@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<title>three.js webgl - loaders - MMD loader</title>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<link type="text/css" rel="stylesheet" href="main.css">
+	<style>
+		body {
+			width:100vw;
+			height:100vh;
+			margin:0;
+			padding:0;
+		}
+
+        a {
+
+			color: #08f;
+        }
+
+        .map {
+            width: calc(50% - 0px);
+            height: calc(50% - 0px);
+            border: 5px solid lightgrey;
+        }
+
+        #main {
+            width: calc(100vw - 0px);
+            height: calc(100vh - 0px);
+            border: 5px solid lightgrey;
+        }
+
+		.mask{
+			width:100vw;
+			height:100vh;
+			background-color:rgba(0,0,0,0.5);
+			position:absolute;
+			left:0px;
+			top:0px;
+			display:none;
+			z-index: 3;
+		}
+
+		.grid4{
+			position:absolute;
+			display:flex;
+			flex-wrap:wrap;
+			left:50vw;
+			height:0px;
+			width:50vw;
+			height:100vh
+		}
+	</style>
+</head>
+
+<body class="d-flex row-direction">
+	<div class="mask">
+		<h1 style="color:white;margin:15px">Loading...</h1>
+	</div>
+	<div id="info">
+		<p>控制面板說明<p>
+	</div>
+
+	<div id="main"></div>
+	<div class="grid4">
+		<div class="map"></div>
+		<div class="map"></div>
+		<div class="map"></div>
+		<div class="map"></div>
+	</div>
+
+
+	<script src="js/libs/ammo.wasm.js"></script>
+	<script src="scoreoutputer.min.js"></script>
+	<script>
+		// 建構子 ScoreOutputer 接受一個字串，該字串為 csv 的檔案名稱
+		// 以下面範例，檔名就為 "109598105(總分: 6).csv"
+		var so = new ScoreOutputer("109598067");
+		so.installCSS(function () {
+			// 安裝 bootstrap 的 css，如果在 html 上方引用 bootstrap 5.1.1 的話就不用使用 installCSS ，注意一定要 bootstrap css 5.1.1 版
+			// installCSS 接收一個 callback 當作參數，作為成功安裝 bootstrap css 的回呼函式
+
+			//加入項目，分數，完成狀況
+			//第一個參數為 項目名稱
+			//第2個參數為 項目分數
+			//第3個參數為 完成狀況，有完成 true/未完成 false
+			//有幾個項目就呼叫幾個 addChild
+			//addChild 要比 renderModal 先呼叫
+			so.addChild("繪製出 5 個畫面", 1, true);
+			so.addChild("回答問題", 1, false);
+			so.addChild("可按鍵選擇上 / 下一隻角色", 1, false);
+			so.addChild("讀取作業 2 儲存的座標點在眼睛上繪製出分割線", 1, false);
+			so.addChild("可選擇當下控制哪個虹膜", 1, false);
+			so.addChild("按滑鼠左鍵控制虹膜移動，右鍵停止", 2, false);
+			so.addChild("複製參數至對應目標參數", 2, false);
+			so.addChild("可儲存虹膜轉動角度", 1, false);
+
+			//產生自評表，參數如下所示
+			so.renderModal(
+				//1. 自評表插入位置 (預設 document.body)
+				document.body,
+				//2. 自評表背景 (預設紅色)
+				'rgba(100,45,58,1)',
+				//3. 自評表文字顏色 (預設白色)
+				'white',
+				//4. 自評表文字大小 (預設 14pt)
+				'15pt',
+				//5. 自評表 checkbox 文字大小 (預設多少忘了)
+				'15px',
+				//6. 自評表標題 (預設 "自我評分表")
+				dialogTitle = "自我評分表"
+			);
+
+			//設定下載按鈕 <-- 一定要呼叫這個函數，不然沒有下載功能
+			so.installDownloadBtn();
+
+			//產生 "開啟自評表按鈕"
+			so.renderBtn(
+				//自評表按鈕插入位置
+				document.querySelector("#info"),
+				//自評表按鈕文字
+				"開啟自評表"
+			);
+		});
+	</script>
+	<script type="module">
+
+		import * as THREE from './build/three.module.js';
+		import { GUI } from './jsm/libs/dat.gui.module.js';
+		import { OrbitControls } from './jsm/controls/OrbitControls.js';
+		import { OutlineEffect } from './jsm/effects/OutlineEffect.js';
+		import { MMDLoader } from './jsm/loaders/MMDLoader.js';
+		import { MMDAnimationHelper } from './jsm/animation/MMDAnimationHelper.js';
+
+		const scale = 30;
+
+        let camera, scene, renderer, effect, lineGroup, cameracontrols
+		let mesh, helper, center;
+		let lbox = { xmin: 0, xmax: 0, ymin: 0, ymax: 0 }
+        let eyeSet = new Array(8).fill().map(x => new THREE.Vector3())
+		let mouse = new THREE.Vector2(0, 0)
+		let container = null
+		let maps = null
+		let rendermode = 0
+		let renderGroup = []
+		let leye = new THREE.Vector3(0, 0, 0)
+        let reye = new THREE.Vector3(0, 0, 0)
+		let head = new THREE.Vector3(0, 0, 0)
+        let width = 0
+		let height = 0
+		let prepared = true
+        let bone0, bone1
+
+		const vpds = [];
+
+        let tmpTarget = new THREE.Vector3(0, 0, 0)
+        let tmpZoom = 1
+        let savestate = () => {
+			tmpTarget.x = camera.position.x
+			tmpTarget.y = camera.position.y
+            //tmpTarget.z = camera.position.z
+			tmpZoom = camera.zoom
+        }
+
+        let restorestate = () => {
+            move2Target(tmpTarget, tmpZoom)
+		}
+
+		function move2Target(target = new THREE.Vector3(0, 0, 0), zoom = 1) {
+
+			if (target == null) {
+				return
+			}
+
+            camera.position.x = target.x
+            camera.position.y = target.y
+            camera.zoom = zoom
+            camera.updateProjectionMatrix()
+
+            cameracontrols.target.copy(target)
+            cameracontrols.update()
+		}
+
+        function getModelIndex(name) {
+
+            if (mesh == null) {
+                return -1
+            }
+
+            let bones = mesh.geometry.bones
+
+            for (let i = 0; i < bones.length; i++) {
+				if (bones[i].name == name) {
+					return i
+                }
+            }
+
+            return -1
+		}
+
+		
+        function getModelPosition(name) {
+            let pos = new THREE.Vector3(0, 0, 0)
+            let newPos = new THREE.Vector3(0, 0, 0)
+
+            if (mesh == null) {
+                return pos
+            }
+
+            let bones = mesh.geometry.bones
+			let index = getModelIndex(name)
+
+			if (index == -1) {
+				return pos
+			}
+
+			let getBonePos = (index) => {
+				let bone = bones[index]
+				let pos = new THREE.Vector3(...(bone.pos))
+                
+                while (bone.parent != -1) {
+                    bone = bones[bone.parent]
+					pos.x += bone.pos[0]
+					pos.y += bone.pos[1]
+                    pos.z += bone.pos[2]
+                }
+                
+                return pos
+            }
+
+			pos.copy(getBonePos(index))
+
+			newPos = (getBonePos(index+1))
+
+            pos.add(newPos).divideScalar(2)
+
+            return pos
+		}
+
+		function init() {
+
+			container = document.getElementById('main')
+			
+			width = container.clientWidth
+			height = container.clientHeight
+
+            view[2].set(width / 2, 0, width / 4, height / 2)
+            view[3].set(width * 3 / 4, 0, width / 4, height / 2)
+            view[0].set(width / 2, height / 2, width / 4, height / 2)
+			view[1].set(width * 3 / 4, height / 2, width / 4, height / 2)
+
+            camera = new THREE.OrthographicCamera(width / scale / - 2, width / scale / 2, height / scale / 2, height / scale / - 2, 0.000001, 1000);
+			camera.position.z = 25;
+
+			// scene
+
+			scene = new THREE.Scene();
+			scene.background = new THREE.Color(0xffffff);
+
+			const ambient = new THREE.AmbientLight(0x666666);
+			scene.add(ambient);
+
+			const directionalLight = new THREE.DirectionalLight(0x887766);
+			directionalLight.position.set(- 1, 1, 1).normalize();
+			scene.add(directionalLight);
+
+			//
+			lineGroup = new THREE.Object3D()
+            scene.add(lineGroup)
+
+			renderer = new THREE.WebGLRenderer({ antialias: true });
+			//renderer.setPixelRatio(window.devicePixelRatio);
+			renderer.setSize(width, height);
+			container.appendChild(renderer.domElement);
+
+            window.addEventListener('resize', onWindowResize);
+            //鏡頭控制
+            cameracontrols = new OrbitControls(camera, renderer.domElement);
+            cameracontrols.minDistance = 10;
+            cameracontrols.maxDistance = 1000;
+            cameracontrols.enableRotate = false;
+
+			effect = new OutlineEffect(renderer);
+
+			// 4 Grid Maps
+			
+            maps = document.getElementsByClassName('map')
+
+			for (let i = 0; i < 4; i++) {
+
+				maps[i].addEventListener('click', () => {					
+                    maps[rendermode].style.border = '5px solid lightgrey'
+					rendermode = i
+                    maps[rendermode].style.border = '5px solid red'
+				})
+			}
+
+            maps[0].click()
+
+			
+
+			function onProgress(xhr) {
+
+				if (xhr.lengthComputable) {
+
+					const percentComplete = xhr.loaded / xhr.total * 100;
+					console.log(Math.round(percentComplete, 2) + '% downloaded');
+
+				}
+
+			}
+
+			const vpdFiles = [
+				'models/mmd/vpds/01.vpd',
+				'models/mmd/vpds/02.vpd',
+				'models/mmd/vpds/03.vpd',
+				'models/mmd/vpds/04.vpd',
+				'models/mmd/vpds/05.vpd',
+				'models/mmd/vpds/06.vpd',
+				'models/mmd/vpds/07.vpd',
+				'models/mmd/vpds/08.vpd',
+				//'models/mmd/vpds/09.vpd',
+				//'models/mmd/vpds/10.vpd',
+				'models/mmd/vpds/11.vpd'
+			];
+
+			helper = new MMDAnimationHelper();
+
+			const loader = new MMDLoader();
+            initGui();
+			
+
+			let axis = new THREE.AxisHelper(200)
+			scene.add(axis)
+
+			function initGui() {
+
+				const gui = new GUI();
+				
+				const controls = {};
+
+				const characters = gui.addFolder('Characters')
+				const operations = gui.addFolder('Operations')
+                const tools = gui.addFolder('tools')
+				const poses = gui.addFolder('Poses');
+				const morphs = gui.addFolder('Morphs');
+
+				let dictionary = []
+
+				function getBaseName(s) {
+
+					return s.slice(s.lastIndexOf('/') + 1);
+
+				}
+
+				function initControls() {
+
+					controls.characters = -1;
+					controls.pose = -1;
+					controls.operation = -1;
+
+					controls.dictionary = {}
+					controls.vpd = {}
+
+					for (let i = 0; i < vpdFiles.length; i++) {
+
+						controls.vpd[getBaseName(vpdFiles[i])] = false;
+
+					}
+
+					controls.leftEye = function () {
+						move2Target(leye, 50)
+					}
+
+                    controls.rightEye = function () {
+						move2Target(reye, 50)
+					}
+
+                    controls.face = function () {
+						move2Target(head, 10)
+                    }
+
+					controls.l2r = function () {
+						updateBounding('r', true)
+					}
+
+                    controls.origin = function () {
+                        move2Target(center)
+					}
+
+					controls.download = function () {
+						let downloadLink = document.createElement('a')
+						let blob = new Blob([JSON.stringify(lbox, null, 2)], { type: 'application/json' })
+						downloadLink.href = URL.createObjectURL(blob)
+						downloadLink.download = 'data'
+                        downloadLink.click()
+					}
+
+					let inputfile = document.createElement('input')
+					inputfile.type = 'file'
+					inputfile.accept = '.json'
+					inputfile.addEventListener('change', (evt) => {
+                        let file = evt.target.files[0]
+                        if (file == null) {
+                            return
+                        }
+                        let fileReader = new FileReader()
+						fileReader.onload = () => {
+							lbox = JSON.parse(fileReader.result)
+							updateBounding('l', false)
+                        }
+                        fileReader.readAsText(file)
+                    })
+
+					controls.upload = function (evt) {
+						inputfile.click()
+                    }
+				}
+
+				const modelFile = [
+					'models/mmd/kizunaai/kizunaai.pmx',
+					'models/mmd/kokoro/kokoro.pmx',
+                    'models/mmd/有西/有西.pmx'
+				]
+
+				function initCharater() {
+					const kiaraList = {
+						none: -1,
+						kizunaAI: 0,
+						kokoro: 1,
+                        物述有栖: 2
+					}
+
+                    characters.add(controls, 'characters', kiaraList).onChange(onChangeCharacter)
+                }
+
+				function initOpertation() {
+					const func = {
+						pointer: -1,
+						select: 0,
+						eyePos: 1
+					}
+					selectOperation.enable = false
+                    renderer.domElement.addEventListener('mousedown', selectOperation.onMouseDown)
+                    renderer.domElement.addEventListener('mousemove', selectOperation.onMouseMove)
+					renderer.domElement.addEventListener('mouseup', selectOperation.onMouseUp)
+                    renderer.domElement.addEventListener('mouseleave', selectOperation.onMouseLeave)
+
+                    eyeOperation.enable = false
+					renderer.domElement.addEventListener('mousedown', eyeOperation.onMouseDown)
+                    renderer.domElement.addEventListener('mousemove', eyeOperation.onMouseMove)
+					renderer.domElement.addEventListener('mouseup', eyeOperation.onMouseUp)
+
+					renderer.domElement.addEventListener('mousemove', (evt) => {
+                        let rect = renderer.domElement.getBoundingClientRect()
+                        mouse.x = ((evt.clientX - rect.left) / width * 2 ) * 2 - 1
+                        mouse.y = -((evt.clientY - rect.top) / height) * 2 + 1
+					})
+
+					renderer.domElement.addEventListener('contextmenu', (evt) => {
+						evt.preventDefault()
+					}, false)
+
+                    document.onkeypress = (evt) => {
+						evt.preventDefault()
+						let code = evt.charCode
+						if (code == 113 && mesh != null) {
+							eyeSet[rendermode + 4].copy(eyeSet[rendermode])
+						}
+						else if (code == 97 && prepared) {
+							controls.characters = (controls.characters + modelFile.length - 1) % modelFile.length
+                            console.log(controls.characters)
+							onChangeCharacter()
+						}
+                        else if (code == 100 && prepared) {
+                            controls.characters = (controls.characters + modelFile.length + 1) % modelFile.length
+							onChangeCharacter()
+                        }
+                    }
+
+                    operations.add(controls, 'operation', func).onChange(onChangeOperation)
+                }
+
+				function initPoses() {
+
+					const files = { default: - 1 };
+
+					for (let i = 0; i < vpdFiles.length; i++) {
+
+						files[getBaseName(vpdFiles[i])] = i;
+
+					}
+
+					poses.add(controls, 'pose', files).onChange(onChangePose);
+
+				}
+
+				function initMorphs() {
+                    //console.log(morphs.__controllers)
+
+					while (morphs.__controllers.length > 0) {
+                        morphs.remove(morphs.__controllers[0])
+                    }
+
+					for (const key in dictionary) {						
+						morphs.add(controls.dictionary, key, 0.0, 1.0, 0.01).onChange(onChangeMorph);
+                    } 
+				}
+
+				function initTools() {
+
+					tools.add(controls, 'origin')
+					tools.add(controls, 'face')
+					tools.add(controls, 'leftEye')
+					tools.add(controls, 'rightEye')
+					tools.add(controls, 'l2r')
+					tools.add(controls, 'download')
+                    tools.add(controls, 'upload')
+				}
+
+				let setMaskEnable = (option) => {
+					let ele = document.querySelector('.mask')
+                    
+					if (option) {
+                        ele.style.display = 'block'
+					}
+                    else {
+                        ele.style.display = 'none'
+                    }
+                    console.log(ele.style)
+                }
+
+				function onChangeCharacter() {
+					prepared = false
+                    setMaskEnable(true)
+					loader.load(modelFile[controls.characters], function (object) {
+						if (mesh != null) {
+							scene.remove(mesh)
+						}
+
+						mesh = object;
+						mesh.geometry.computeBoundingBox()
+
+						center = new THREE.Vector3()
+                        mesh.geometry.boundingBox.getCenter(center)
+						scene.add(mesh);
+
+						dictionary = mesh.morphTargetDictionary
+                        controls.dictionary = {}
+                        for (const key in dictionary) {
+                            controls.dictionary[key] = 0.0;
+						}
+						//console.log(mesh)
+						initMorphs();
+                        onChangeMorph();
+						onChangePose();
+
+						leye = getModelPosition('左目')
+						reye = getModelPosition('右目')
+						head = getModelPosition('頭')
+
+                        bone0 = mesh.skeleton.bones[getModelIndex('左目')]
+                        bone1 = mesh.skeleton.bones[getModelIndex('右目')]
+						
+						move2Target(leye, 40)
+
+						let t = () => {
+                            if (loader.meshBuilder.materialBuilder.process == 0) {
+                                //finish loading
+                                setMaskEnable(false)
+								prepared = true
+                            }
+                            else {
+                                setTimeout(t, 100)
+                            }
+						}
+						setTimeout(t, 100)
+
+                    }, onProgress, null);
+				}
+
+				function initVpds() {
+					let vpdIndex = 0;
+                    function loadVpd() {
+
+                        const vpdFile = vpdFiles[vpdIndex];
+
+                        loader.loadVPD(vpdFile, false, function (vpd) {
+
+                            vpds.push(vpd);
+
+                            vpdIndex++;
+
+                            if (vpdIndex < vpdFiles.length) {
+
+                                loadVpd();
+
+                            }
+
+                        }, onProgress, null);
+
+                    }
+
+                    loadVpd();
+				}
+
+                let startPos = new THREE.Vector2()
+				let endPos = new THREE.Vector2()
+				let raycaster = new THREE.Raycaster()
+				let result
+
+				raycaster.params.Line.threshold = 0.05
+				raycaster.linePrecision = 0.1
+
+                function addLine(points, color, name) {
+                    let obj = scene.getObjectByName(name)
+					let geometry, material
+
+					points[0].z = 0
+					points[1].z = 0
+
+                    geometry = new THREE.BufferGeometry().setFromPoints(points)
+					if (obj == null) {
+ 
+                        material = new THREE.LineBasicMaterial({
+                            color: color,
+                            depthTest: false
+                        })
+
+						let line = new THREE.Line(geometry, material)
+						line.name = name
+						lineGroup.add(line)
+                    }
+					else {
+						obj.geometry = geometry
+                    }
+
+				}
+
+				let updateBounding = (name = 'l', state = false) => {
+					let pos0, pos1, pos2, pos3, color0, color1
+					if (state) {
+                        pos0 = new THREE.Vector3().set(lbox.xmin, lbox.ymin, 0).unproject(camera)
+                        pos1 = new THREE.Vector3().set(lbox.xmax, lbox.ymin, 0).unproject(camera)
+                        pos2 = new THREE.Vector3().set(lbox.xmax, lbox.ymax, 0).unproject(camera)
+						pos3 = new THREE.Vector3().set(lbox.xmin, lbox.ymax, 0).unproject(camera)
+
+						pos0.x = pos0.x * -1
+						pos1.x = pos1.x * -1
+						pos2.x = pos2.x * -1
+                        pos3.x = pos3.x * -1
+
+                        color0 = 0xff00ff
+                        color1 = 0x00ffff
+					}
+
+					else {
+                        pos0 = new THREE.Vector3().set(lbox.xmin, lbox.ymin, 0).unproject(camera)
+                        pos1 = new THREE.Vector3().set(lbox.xmax, lbox.ymin, 0).unproject(camera)
+                        pos2 = new THREE.Vector3().set(lbox.xmax, lbox.ymax, 0).unproject(camera)
+                        pos3 = new THREE.Vector3().set(lbox.xmin, lbox.ymax, 0).unproject(camera)
+
+                        color0 = 0xff0000
+                        color1 = 0x00ff00
+                    }
+
+                    addLine([pos0, pos1], color0, name + '0')
+                    addLine([pos1, pos2], color1, name + '1')
+                    addLine([pos2, pos3], color0, name + '2')
+                    addLine([pos3, pos0], color1, name + '3')
+
+                    let start0 = pos0.clone()
+                    let start1 = pos1.clone()
+                    let step0 = (pos2.y - pos0.y) / 3
+                    let step1 = (pos3.y - pos1.y) / 3
+                    for (let i = 1; i < 3; i++) {
+                        start0.y += step0
+                        start1.y += step1
+                        addLine([start0, start1], color0, 'h' + name + i)
+                    }
+
+                    start0 = pos1.clone()
+                    start1 = pos2.clone()
+                    step0 = (pos3.x - pos1.x) / 7
+                    step1 = (pos0.x - pos2.x) / 7
+                    for (let i = 1; i < 7; i++) {
+                        start0.x += step0
+                        start1.x += step1
+                        addLine([start0, start1], color1, 'v' + name + i)
+					}
+
+                }
+
+				let selectOperation = {
+                    mode: -1,
+                    enable: false,
+					onMouseDown: (evt) => {
+						if (!selectOperation.enable) {
+							return
+						}
+
+                        if (result != null) {
+                            selectOperation.mode = 2
+                        }
+                        else {
+                            selectOperation.mode = 0
+						}
+
+						startPos.copy(mouse)
+					},
+					onMouseMove : (evt) => {
+                        if (!selectOperation.enable) {
+                            return
+						}
+
+                        if (selectOperation.mode == -1) {
+                            raycaster.setFromCamera(mouse, camera);
+
+                            const intersects = raycaster.intersectObjects(lineGroup.children, true);
+
+                            if (intersects.length > 0) {
+
+                                result = intersects[0].object
+                                if (result.name == 'l0' || result.name == 'l2') {
+                                    document.body.style.cursor = 'row-resize'
+                                }
+                                else if (result.name == 'l1' || result.name == 'l3') {
+                                    document.body.style.cursor = 'col-resize'
+                                }
+
+                            } else {
+                                document.body.style.cursor = 'default'
+                                result = null
+                            }
+                        }
+
+                        else if (selectOperation.mode == 0) {
+                            endPos.copy(mouse)
+
+                            lbox.xmin = Math.min(startPos.x, endPos.x)
+                            lbox.xmax = Math.max(startPos.x, endPos.x)
+                            lbox.ymin = Math.min(startPos.y, endPos.y)
+                            lbox.ymax = Math.max(startPos.y, endPos.y)
+
+                            updateBounding()
+                        }
+
+                        else if (selectOperation.mode == 2) {
+
+                            endPos.copy(mouse)
+
+                            if (result.name == 'l0') {
+                                lbox.ymin = endPos.y
+                            }
+                            else if (result.name == 'l1') {
+                                lbox.xmax = endPos.x
+                            }
+                            else if (result.name == 'l2') {
+                                lbox.ymax = endPos.y
+                            }
+                            else if (result.name == 'l3') {
+                                lbox.xmin = endPos.x
+                            }
+
+                            updateBounding()
+						}
+
+					},
+					onMouseUp: (evt) => {
+                        if (!selectOperation.enable) {
+                            return
+						}
+
+                        document.body.style.cursor = 'default'
+						selectOperation.mode = -1
+
+					},
+					onMouseLeave: (evt) => {
+                        if (!selectOperation.enable) {
+                            return
+						}
+
+						document.body.style.cursor = 'default'
+
+                    }
+                }
+
+				let eyeOperation = {
+					mode: -1,
+					enable: false,
+					onMouseDown: (evt) => {
+						if (!eyeOperation.enable) {
+							return
+						}
+
+                        if (evt.button == 0 && evt.buttons == 1) {
+                            eyeOperation.mode = 0
+                        }
+
+                        else if (evt.button == 2 && evt.buttons == 2) {
+                            eyeOperation.mode = -1
+                        }
+
+						startPos.copy(mouse)
+                    },
+					onMouseMove : (evt) => {
+                        if (!eyeOperation.enable) {
+                            return
+						}
+
+                        if (eyeOperation.mode == 0) {
+                            endPos.copy(mouse)
+							let offsetPos = endPos.clone().sub(startPos)                           
+							let absX = Math.abs(offsetPos.x)
+							let absY = Math.abs(offsetPos.y)
+
+							if (absX > absY) {
+                                eyeSet[rendermode].x = 0
+                                eyeSet[rendermode].y = offsetPos.x
+							}
+                            else if (absX < absY) {
+                                eyeSet[rendermode].x = -offsetPos.y
+                                eyeSet[rendermode].y = 0
+							}
+							else {
+                                eyeSet[rendermode].x = 0
+                                eyeSet[rendermode].y = 0
+							}
+						}
+                    },
+					onMouseUp: (evt) => {
+                    }
+				}
+
+				function onChangeOperation() {
+                    
+					switch (controls.operation) {
+						case '-1':
+							cameracontrols.enabled = true
+							selectOperation.enable = false
+							eyeOperation.enable = false
+							break
+						case '0':
+							cameracontrols.enabled = false
+							selectOperation.enable = true
+                            eyeOperation.enable = false
+							break
+						case '1':
+							cameracontrols.enabled = false
+                            selectOperation.enable = false
+                            eyeOperation.enable = true
+
+					}
+                }
+
+				function onChangeMorph() {
+					let keys = Object.keys(dictionary)
+
+                    for (let i = 0; i < keys.length; i++) {
+						let key = keys[i]
+                        
+                        mesh.morphTargetInfluences[i] = controls.dictionary[key]
+					}
+				}
+
+				function onChangePose() {
+
+					const index = parseInt(controls.pose);
+
+					if (index === - 1) {
+
+						mesh.pose();
+
+					} else {
+
+						helper.pose(mesh, vpds[index]);
+
+					}
+				}
+                initControls();
+                initVpds()
+                initCharater()
+				
+				initPoses();
+				initMorphs();
+				initOpertation();
+				initTools();
+
+				characters.open();
+				operations.open();
+				tools.open();
+
+			}
+
+		}
+
+		let setCamera = (width, height) => {
+            camera.left = width / scale / - 2;
+            camera.right = width / scale / 2;
+            camera.top = height / scale / 2;
+            camera.bottom = height / scale / - 2;
+            camera.updateProjectionMatrix();
+        }
+
+		function onWindowResize() {
+			width = container.clientWidth
+			height = container.clientHeight
+
+			view[2].set(width / 2, 0, width / 4, height / 2)
+            view[3].set(width * 3 / 4, 0, width / 4, height / 2)
+            view[0].set(width / 2, height / 2, width / 4, height / 2)
+            view[1].set(width * 3 / 4, height / 2, width / 4, height / 2)
+
+			effect.setSize(width, height);
+
+			for (let i = 0; i < 4; i++) {
+                //let mapwidth = maps[i].clientWidth
+				//let mapheight = maps[i].clientHeight
+				//renderGroup[i].setSize(mapwidth, mapheight)
+			}
+		}
+
+		//
+
+        let setLineVisibility = (option) => {
+            for (let i = 0; i < lineGroup.children.length; i++) {
+                lineGroup.children[i].visible = option
+            }
+        }
+
+		let view = [
+			new THREE.Vector4(),
+            new THREE.Vector4(),
+            new THREE.Vector4(),
+            new THREE.Vector4()
+		]
+
+		function animate() {
+			render()
+			requestAnimationFrame(animate)
+        }
+
+		function render() {
+			if (mesh != null && prepared) {
+
+				bone0.rotation.x = eyeSet[rendermode].x
+				bone0.rotation.y = eyeSet[rendermode].y
+				bone0.rotation.z = eyeSet[rendermode].z
+
+                bone1.rotation.x = eyeSet[rendermode + 4].x
+                bone1.rotation.y = eyeSet[rendermode + 4].y
+                bone1.rotation.z = eyeSet[rendermode + 4].z
+            }
+
+			setLineVisibility(true)
+			effect.setViewport(0, 0, width / 2, height)
+			effect.setScissor(0, 0, width / 2, height)
+			effect.setScissorTest(true)
+            setCamera(width / 2, height)
+			effect.render(scene, camera);
+			
+            setLineVisibility(false)
+
+            savestate()
+            move2Target(head, 10)
+
+			for (let i = 0; i < 4 ; i++) {
+
+				if (mesh != null) {
+                    bone0.rotation.x = eyeSet[i].x
+                    bone0.rotation.y = eyeSet[i].y
+                    bone0.rotation.z = eyeSet[i].z
+
+                    bone1.rotation.x = eyeSet[i + 4].x
+                    bone1.rotation.y = eyeSet[i + 4].y
+                    bone1.rotation.z = eyeSet[i + 4].z
+                }
+                
+
+                effect.setViewport(view[i])
+                effect.setScissor(view[i])
+				effect.setScissorTest(true)
+                //setCamera(view[i].z, view[i].w)
+
+                if (i == rendermode) {
+                    setLineVisibility(true)
+
+                }
+                else {
+
+                }
+
+                effect.render(scene, camera);
+
+                setLineVisibility(false)
+            }
+
+            move2Target(leye, 40)
+            restorestate()
+		}
+
+        Ammo().then(function (AmmoLib) {
+
+            Ammo = AmmoLib;
+
+			init();
+			animate()
+        });
+	</script>
+
+</body>
+
+</html>
