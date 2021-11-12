@@ -94,11 +94,12 @@
 
 		let camera, scene, renderer, effect, lineGroup, cameracontrols
 		let mesh, helper, center;
-		let lbox = { xmin: 0, xmax: 0, ymin: 0, ymax: 0 }
+        let lPos = { v0: new THREE.Vector3(), v1: new THREE.Vector3(), v2: new THREE.Vector3(),v3:new THREE.Vector3()}
 		let eyeSet = new Array(8).fill().map(x => new THREE.Vector3())
 		let mouse = new THREE.Vector2(0, 0)
 		let container = null
 		let maps = null
+		let iscopy = false
 
 		let rendermode = 0
 
@@ -243,18 +244,103 @@
 
 			effect = new OutlineEffect(renderer);
 
-			// 4 Grid Maps
+            function addLine(points, color, name) {
+                let obj = scene.getObjectByName(name)
+                let geometry, material
 
-			maps = document.getElementsByClassName('map')
-			let setMap = (i) => {
-                maps[rendermode].style.border = '5px solid lightgrey'
-                rendermode = i
-                if (isleftEye) {
-                    maps[rendermode].style.border = '5px solid red'
+                points[0].z = 0
+                points[1].z = 0
+
+                geometry = new THREE.BufferGeometry().setFromPoints(points)
+                if (obj == null) {
+
+                    material = new THREE.LineBasicMaterial({
+                        color: color,
+                        depthTest: false
+                    })
+
+                    let line = new THREE.Line(geometry, material)
+                    line.name = name
+                    lineGroup.add(line)
                 }
                 else {
-                    maps[rendermode].style.border = '5px solid blue'
+                    obj.geometry = geometry
                 }
+
+			}
+
+			// 4 Grid Maps
+			let updateBounding = (copy = iscopy, state = isleftEye) => {
+				let pos0 = lPos.v0.clone(),
+					pos1 = lPos.v1.clone(),
+					pos2 = lPos.v2.clone(),
+					pos3 = lPos.v3.clone()
+
+				let color0 = 0xff0000
+				let color1 = 0x00ff00
+				let name = 'l'
+
+				let process = () => {
+                    addLine([pos0, pos1], color0, name + '0')
+                    addLine([pos1, pos2], color1, name + '1')
+                    addLine([pos2, pos3], color0, name + '2')
+                    addLine([pos3, pos0], color1, name + '3')
+
+                    let start0 = pos0.clone()
+                    let start1 = pos1.clone()
+                    let step0 = (pos2.y - pos0.y) / 4
+                    let step1 = (pos3.y - pos1.y) / 4
+                    for (let i = 1; i < 4; i++) {
+                        start0.y += step0
+                        start1.y += step1
+                        addLine([start0, start1], color0, 'h' + name + i)
+                    }
+
+                    start0 = pos1.clone()
+                    start1 = pos2.clone()
+                    step0 = (pos3.x - pos1.x) / 8
+                    step1 = (pos0.x - pos2.x) / 8
+                    for (let i = 1; i < 8; i++) {
+                        start0.x += step0
+                        start1.x += step1
+                        addLine([start0, start1], color1, 'v' + name + i)
+                    }
+				}
+
+				if (!state) {
+                    pos0.x = -pos0.x
+                    pos1.x = -pos1.x
+                    pos2.x = -pos2.x
+                    pos3.x = -pos3.x
+                }
+
+				process()
+
+				if (copy) {
+                    color0 = 0xff00ff
+                    color1 = 0x00ffff
+					name = 'r'
+                    pos0.x = -pos0.x
+                    pos1.x = -pos1.x
+                    pos2.x = -pos2.x
+                    pos3.x = -pos3.x
+
+					process()
+                }
+			}
+
+			maps = document.getElementsByClassName('map')
+            let setMap = (i) => {
+                
+                maps[rendermode].style.border = '5px solid lightgrey'
+                rendermode = i
+				if (isleftEye) {
+                    maps[rendermode].style.border = '5px solid red'
+                }
+				else {                    
+                    maps[rendermode].style.border = '5px solid blue'
+				}
+
 
                 if (!prepared) {
                     return
@@ -265,7 +351,9 @@
                 }
                 else {
                     move2Target(leye, 40)
-                }
+				}
+                updateBounding()
+				
                 render()
             }
 			for (let i = 0; i < 4; i++) {
@@ -429,7 +517,8 @@
 					}
 
 					controls.l2r = function () {
-						updateBounding('r', true)
+						iscopy = true
+						updateBounding()
 					}
 
 					controls.origin = function () {
@@ -444,14 +533,14 @@
 						let data = {
 							modellist: {
 								location: modelFile[controls.characters],
-								line_locationx_1: lbox.xmin,
-								line_locationy_1: lbox.ymin,
-								line_locationx_2: lbox.xmax,
-								line_locationy_2: lbox.ymin,
-								line_locationx_3: lbox.xmin,
-								line_locationy_3: lbox.ymax,
-								line_locationx_4: lbox.xmax,
-								line_locationy_4: lbox.ymax,
+								line_locationx_1: lPos.v0.x,
+                                line_locationy_1: lPos.v0.y,
+                                line_locationx_2: lPos.v1.x,
+                                line_locationy_2: lPos.v1.y,
+                                line_locationx_3: lPos.v2.x,
+                                line_locationy_3: lPos.v2.y,
+                                line_locationx_4: lPos.v3.x,
+                                line_locationy_4: lPos.v3.y,
 								RXNA: eyeSet[4],
 								LXNA: eyeSet[0],
 								RXPA: eyeSet[5],
@@ -480,10 +569,14 @@
 						let fileReader = new FileReader()
 						fileReader.onload = () => {
 							let data = JSON.parse(fileReader.result)
-							lbox.xmin = data.modellist.line_locationx_1
-							lbox.ymin = data.modellist.line_locationy_1
-							lbox.xmax = data.modellist.line_locationx_4
-							lbox.ymax = data.modellist.line_locationy_4
+							lPos.v0.x = data.modellist.line_locationx_1
+							lPos.v0.y = data.modellist.line_locationy_1
+                            lPos.v1.x = data.modellist.line_locationx_2
+							lPos.v1.y = data.modellist.line_locationy_2
+                            lPos.v2.x = data.modellist.line_locationx_3
+                            lPos.v2.y = data.modellist.line_locationy_3
+                            lPos.v3.x = data.modellist.line_locationx_4
+                            lPos.v3.y = data.modellist.line_locationy_4
 
 							eyeSet[0] = data.modellist.RXNA
 							eyeSet[1] = data.modellist.RXPA
@@ -494,7 +587,7 @@
 							eyeSet[6] = data.modellist.LYNA
 							eyeSet[7] = data.modellist.LYPA
 
-							updateBounding('l', false)
+							updateBounding()
 						}
 						fileReader.readAsText(file)
 					})
@@ -779,85 +872,6 @@
 				raycaster.params.Line.threshold = 0.05
 				raycaster.linePrecision = 0.1
 
-				function addLine(points, color, name) {
-					let obj = scene.getObjectByName(name)
-					let geometry, material
-
-					points[0].z = 0
-					points[1].z = 0
-
-					geometry = new THREE.BufferGeometry().setFromPoints(points)
-					if (obj == null) {
-
-						material = new THREE.LineBasicMaterial({
-							color: color,
-							depthTest: false
-						})
-
-						let line = new THREE.Line(geometry, material)
-						line.name = name
-						lineGroup.add(line)
-					}
-					else {
-						obj.geometry = geometry
-					}
-
-				}
-
-				let updateBounding = (name = 'l', state = false) => {
-					let pos0, pos1, pos2, pos3, color0, color1
-					if (state) {
-						pos0 = new THREE.Vector3().set(lbox.xmin, lbox.ymin, 0).unproject(camera)
-						pos1 = new THREE.Vector3().set(lbox.xmax, lbox.ymin, 0).unproject(camera)
-						pos2 = new THREE.Vector3().set(lbox.xmax, lbox.ymax, 0).unproject(camera)
-						pos3 = new THREE.Vector3().set(lbox.xmin, lbox.ymax, 0).unproject(camera)
-
-						pos0.x = pos0.x * -1
-						pos1.x = pos1.x * -1
-						pos2.x = pos2.x * -1
-						pos3.x = pos3.x * -1
-
-						color0 = 0xff00ff
-						color1 = 0x00ffff
-					}
-
-					else {
-						pos0 = new THREE.Vector3().set(lbox.xmin, lbox.ymin, 0).unproject(camera)
-						pos1 = new THREE.Vector3().set(lbox.xmax, lbox.ymin, 0).unproject(camera)
-						pos2 = new THREE.Vector3().set(lbox.xmax, lbox.ymax, 0).unproject(camera)
-						pos3 = new THREE.Vector3().set(lbox.xmin, lbox.ymax, 0).unproject(camera)
-
-						color0 = 0xff0000
-						color1 = 0x00ff00
-					}
-
-					addLine([pos0, pos1], color0, name + '0')
-					addLine([pos1, pos2], color1, name + '1')
-					addLine([pos2, pos3], color0, name + '2')
-					addLine([pos3, pos0], color1, name + '3')
-
-					let start0 = pos0.clone()
-					let start1 = pos1.clone()
-					let step0 = (pos2.y - pos0.y) / 4
-					let step1 = (pos3.y - pos1.y) / 4
-					for (let i = 1; i < 4; i++) {
-						start0.y += step0
-						start1.y += step1
-						addLine([start0, start1], color0, 'h' + name + i)
-					}
-
-					start0 = pos1.clone()
-					start1 = pos2.clone()
-					step0 = (pos3.x - pos1.x) / 8
-					step1 = (pos0.x - pos2.x) / 8
-					for (let i = 1; i < 8; i++) {
-						start0.x += step0
-						start1.x += step1
-						addLine([start0, start1], color1, 'v' + name + i)
-					}
-
-				}
-
 				let selectOperation = {
 					mode: -1,
 					enable: false,
@@ -876,6 +890,24 @@
 						startPos.copy(mouse)
 					},
 					onMouseMove: (evt) => {
+                        let lbox = { xmin: 0, xmax: 0, ymin: 0, ymax: 0 }
+                        let updatePos = () => {
+                            if (isleftEye) {
+                                lPos.v0.set(lbox.xmin, lbox.ymin, 0).unproject(camera)
+                                lPos.v1.set(lbox.xmax, lbox.ymin, 0).unproject(camera)
+                                lPos.v2.set(lbox.xmax, lbox.ymax, 0).unproject(camera)
+                                lPos.v3.set(lbox.xmin, lbox.ymax, 0).unproject(camera)
+                            }
+
+                            else {
+                                lPos.v0.set(lbox.xmin * -1, lbox.ymin, 0).unproject(camera)
+                                lPos.v1.set(lbox.xmax * -1, lbox.ymin, 0).unproject(camera)
+                                lPos.v2.set(lbox.xmax * -1, lbox.ymax, 0).unproject(camera)
+                                lPos.v3.set(lbox.xmin * -1, lbox.ymax, 0).unproject(camera)
+                            }
+
+						}
+
 						if (!selectOperation.enable) {
 							return
 						}
@@ -904,11 +936,20 @@
 						else if (selectOperation.mode == 0) {
 							endPos.copy(mouse)
 
-							lbox.xmin = Math.min(startPos.x, endPos.x)
-							lbox.xmax = Math.max(startPos.x, endPos.x)
-							lbox.ymin = Math.min(startPos.y, endPos.y)
-							lbox.ymax = Math.max(startPos.y, endPos.y)
+							if (isleftEye) {
+                                lbox.xmin = Math.min(startPos.x, endPos.x)
+                                lbox.xmax = Math.max(startPos.x, endPos.x)
+                                lbox.ymin = Math.min(startPos.y, endPos.y)
+                                lbox.ymax = Math.max(startPos.y, endPos.y)
+							}
+							else {
+                                lbox.xmin = -Math.min(startPos.x, endPos.x)
+                                lbox.xmax = -Math.max(startPos.x, endPos.x)
+                                lbox.ymin = Math.min(startPos.y, endPos.y)
+                                lbox.ymax = Math.max(startPos.y, endPos.y)
+                            }
 
+							updatePos()
 							updateBounding()
 						}
 
@@ -929,6 +970,7 @@
 								lbox.xmin = endPos.x
 							}
 
+                            updatePos()
 							updateBounding()
 						}
 
