@@ -616,10 +616,10 @@
 						}
 
 						if (code == 113 && isleftEye) {
-							eyeSet[rendermode + 4].copy(eyeSet[rendermode])
+                            eyeSet[rendermode].copy(eyeSet[rendermode + 4])
 						}
                         else if (code == 113 && !isleftEye) {
-                            eyeSet[rendermode].copy(eyeSet[rendermode + 4])
+                            eyeSet[rendermode + 4].copy(eyeSet[rendermode ])
                         }
 						else if (code == 97) {
 							controls.characters = (controls.characters + modelFile.length - 1) % modelFile.length
