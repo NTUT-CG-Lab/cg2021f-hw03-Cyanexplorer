@@ -891,22 +891,6 @@
 					},
 					onMouseMove: (evt) => {
                         let lbox = { xmin: 0, xmax: 0, ymin: 0, ymax: 0 }
-                        let updatePos = () => {
-                            if (isleftEye) {
-                                lPos.v0.set(lbox.xmin, lbox.ymin, 0).unproject(camera)
-                                lPos.v1.set(lbox.xmax, lbox.ymin, 0).unproject(camera)
-                                lPos.v2.set(lbox.xmax, lbox.ymax, 0).unproject(camera)
-                                lPos.v3.set(lbox.xmin, lbox.ymax, 0).unproject(camera)
-                            }
-
-                            else {
-                                lPos.v0.set(lbox.xmin * -1, lbox.ymin, 0).unproject(camera)
-                                lPos.v1.set(lbox.xmax * -1, lbox.ymin, 0).unproject(camera)
-                                lPos.v2.set(lbox.xmax * -1, lbox.ymax, 0).unproject(camera)
-                                lPos.v3.set(lbox.xmin * -1, lbox.ymax, 0).unproject(camera)
-                            }
-
-						}
 
 						if (!selectOperation.enable) {
 							return
@@ -947,30 +931,56 @@
                                 lbox.xmax = -Math.max(startPos.x, endPos.x)
                                 lbox.ymin = Math.min(startPos.y, endPos.y)
                                 lbox.ymax = Math.max(startPos.y, endPos.y)
+							}
+
+                            if (isleftEye) {
+                                lPos.v0.set(lbox.xmin, lbox.ymin, 0).unproject(camera)
+                                lPos.v1.set(lbox.xmax, lbox.ymin, 0).unproject(camera)
+                                lPos.v2.set(lbox.xmax, lbox.ymax, 0).unproject(camera)
+                                lPos.v3.set(lbox.xmin, lbox.ymax, 0).unproject(camera)
                             }
 
-							updatePos()
+                            else {
+                                lPos.v0.set(lbox.xmin * -1, lbox.ymin, 0).unproject(camera)
+                                lPos.v1.set(lbox.xmax * -1, lbox.ymin, 0).unproject(camera)
+                                lPos.v2.set(lbox.xmax * -1, lbox.ymax, 0).unproject(camera)
+                                lPos.v3.set(lbox.xmin * -1, lbox.ymax, 0).unproject(camera)
+                            }
+
 							updateBounding()
 						}
 
 						else if (selectOperation.mode == 2) {
 
 							endPos.copy(mouse)
+							let tmp = new THREE.Vector3()
 
 							if (result.name == 'l0') {
 								lbox.ymin = endPos.y
+								tmp.set(0, lbox.ymin, 0).unproject(camera)
+								lPos.v0.y = tmp.y
+                                lPos.v1.y = tmp.y
 							}
 							else if (result.name == 'l1') {
 								lbox.xmax = endPos.x
+								tmp.set(lbox.xmax, 0, 0).unproject(camera)
+                                tmp.x = isleftEye ? tmp.x : -tmp.x
+                                lPos.v1.x = tmp.x
+                                lPos.v2.x = tmp.x
 							}
 							else if (result.name == 'l2') {
 								lbox.ymax = endPos.y
+								tmp.set(0, lbox.ymax, 0).unproject(camera)
+                                lPos.v2.y = tmp.y
+                                lPos.v3.y = tmp.y
 							}
 							else if (result.name == 'l3') {
 								lbox.xmin = endPos.x
+								tmp.set(lbox.xmin, 0, 0).unproject(camera)
+                                tmp.x = isleftEye ? tmp.x : -tmp.x
+								lPos.v0.x = tmp.x
+								lPos.v3.x = tmp.x
 							}
-
-                            updatePos()
 							updateBounding()
 						}
 
