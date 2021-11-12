@@ -246,34 +246,36 @@
 			// 4 Grid Maps
 
 			maps = document.getElementsByClassName('map')
+			let setMap = (i) => {
+                maps[rendermode].style.border = '5px solid lightgrey'
+                rendermode = i
+                if (isleftEye) {
+                    maps[rendermode].style.border = '5px solid red'
+                }
+                else {
+                    maps[rendermode].style.border = '5px solid blue'
+                }
 
+                if (!prepared) {
+                    return
+                }
+
+                if (isleftEye) {
+                    move2Target(leye, 40)
+                }
+                else {
+                    move2Target(reye, 40)
+                }
+                render()
+            }
 			for (let i = 0; i < 4; i++) {
 
 				maps[i].addEventListener('click', () => {
 					if (i == rendermode) {
 						isleftEye = !isleftEye
 					}
-
-					maps[rendermode].style.border = '5px solid lightgrey'
-					rendermode = i
-					if (isleftEye) {
-						maps[rendermode].style.border = '5px solid red'
-					}
-					else {
-						maps[rendermode].style.border = '5px solid blue'
-					}
-
-					if (!prepared) {
-						return
-					}
-
-					if (isleftEye) {
-						move2Target(leye, 40)
-					}
-					else {
-						move2Target(reye, 40)
-					}
-					render()
+                    setMap(i)
+					
 				})
 			}
 
@@ -455,9 +457,9 @@
 								RXPA: eyeSet[1],
 								LXPA: eyeSet[5],
 								RYNA: eyeSet[2],
-								LYNA: eyeSet[6],
-								RYPA: eyeSet[3],
-								LYPA: eyeSet[7]
+								LYNA: eyeSet[7],
+								RYPA: eyeSet[5],
+								LYPA: eyeSet[3]
 							}
 						}
 						let downloadLink = document.createElement('a')
@@ -550,6 +552,60 @@
 						evt.preventDefault()
 					}, false)
 
+					let getOrder = (mode, eyeState) => {
+                        switch (mode) {
+							case 0:
+								return eyeState ? 0 : 1
+                                break
+                            case 1:
+                                return eyeState ? 2 : 3
+                                break
+                            case 2:
+                                return eyeState ? 4 : 6
+                                break
+                            case 3:
+                                return eyeState ? 7 : 5
+                        }
+					}
+
+					let setState = (order) => {
+						
+						switch (order) {
+                            case 0:
+                                isleftEye = true
+                                setMap(0)
+                                break
+                            case 1:
+                                isleftEye = false
+                                setMap(0)
+                                break
+                            case 2:
+                                isleftEye = true
+                                setMap(1)
+                                break
+                            case 3:
+                                isleftEye = false
+								setMap(1)
+                                break
+							case 4:
+                                isleftEye = true
+                                setMap(2)
+								break
+							case 5:
+                                isleftEye = false
+                                setMap(3)
+								break
+							case 6:
+                                isleftEye = false
+                                setMap(2)
+								break
+							case 7:
+                                isleftEye = true
+                                setMap(3)
+                                break
+                        }
+					}
+
 					document.onkeypress = (evt) => {
 						evt.preventDefault()
 						let code = evt.charCode
@@ -575,27 +631,13 @@
 							onChangeCharacter()
 						}
 						else if (code == 49) {
-							let tmp = (rendermode + 3) % 4
-							if (!isleftEye) {
-								tmp = rendermode
-							}
-							else {
-                                isleftEye = !isleftEye
-                            }
-							
-							
-							maps[tmp].click()
+                            let order = getOrder(rendermode, isleftEye)
+							setState((order + 7) % 8)
+                            console.log(order)
 						}
 						else if (code == 50) {
-							let tmp = (rendermode + 5) % 4
-							if (isleftEye) {
-								tmp = rendermode
-							}
-							else {
-                                isleftEye = !isleftEye
-                            }
-                            
-							maps[tmp].click()
+                            let order = getOrder(rendermode, isleftEye)
+                            setState((order + 9) % 8)
 						}
 						else if (code == 115) {
 							controls.download()
