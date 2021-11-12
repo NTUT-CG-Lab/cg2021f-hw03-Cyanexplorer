@@ -452,14 +452,14 @@
 								line_locationy_3: lbox.ymax,
 								line_locationx_4: lbox.xmax,
 								line_locationy_4: lbox.ymax,
-								RXNA: eyeSet[0],
-								LXNA: eyeSet[4],
-								RXPA: eyeSet[1],
-								LXPA: eyeSet[5],
-								RYNA: eyeSet[2],
-								LYNA: eyeSet[7],
-								RYPA: eyeSet[5],
-								LYPA: eyeSet[3]
+								RXNA: eyeSet[4],
+								LXNA: eyeSet[0],
+								RXPA: eyeSet[5],
+								LXPA: eyeSet[1],
+								RYNA: eyeSet[5],
+								LYNA: eyeSet[3],
+								RYPA: eyeSet[2],
+								LYPA: eyeSet[7]
 							}
 						}
 						let downloadLink = document.createElement('a')
@@ -981,7 +981,7 @@
 							let absX = Math.abs(offsetPos.x)
 							let absY = Math.abs(offsetPos.y)
 
-							let offset = isleftEye ? 0 : 4
+							let offset = isleftEye ? 4 : 0
 
 							if (absX > absY) {
 								eyeSet[rendermode + offset].x = 0
