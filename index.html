@@ -261,10 +261,10 @@
                 }
 
                 if (isleftEye) {
-                    move2Target(leye, 40)
+                    move2Target(reye, 40)
                 }
                 else {
-                    move2Target(reye, 40)
+                    move2Target(leye, 40)
                 }
                 render()
             }
@@ -729,13 +729,13 @@
 						bone0 = mesh.skeleton.bones[getModelIndex('左目')]
 						bone1 = mesh.skeleton.bones[getModelIndex('右目')]
 
-						move2Target(leye, 40)
-
 						let t = () => {
 							if (loader.meshBuilder.materialBuilder.process == 0) {
 								//finish loading
 								setMaskEnable(false)
 								prepared = true
+								isleftEye = false
+								maps[0].click()
 							}
 							else {
 								setTimeout(t, 100)
