@@ -580,14 +580,14 @@
                     lPos.v3.x = data.modellist.line_locationx_4
                     lPos.v3.y = data.modellist.line_locationy_4
 
-                    eyeSet[4] = data.modellist.RXNA
-                    eyeSet[0] = data.modellist.LXNA
-                    eyeSet[5] = data.modellist.RXPA
-                    eyeSet[1] = data.modellist.LXPA
-                    eyeSet[6] = data.modellist.RYNA
-                    eyeSet[3] = data.modellist.LYNA
-                    eyeSet[2] = data.modellist.RYPA
-                    eyeSet[7] = data.modellist.LYPA
+					eyeSet[4].set(...Object.values(data.modellist.RXNA))
+                    eyeSet[0].set(...Object.values(data.modellist.LXNA))
+                    eyeSet[5].set(...Object.values(data.modellist.RXPA))
+                    eyeSet[1].set(...Object.values(data.modellist.LXPA))
+                    eyeSet[6].set(...Object.values(data.modellist.RYNA))
+                    eyeSet[3].set(...Object.values(data.modellist.LYNA))
+                    eyeSet[2].set(...Object.values(data.modellist.RYPA))
+                    eyeSet[7].set(...Object.values(data.modellist.LYPA))
 
                     updateBounding()
 				}
