@@ -491,7 +491,7 @@
 
 				function initControls() {
 
-					controls.characters = -1;
+					controls.characters = 0;
 					controls.pose = -1;
 					controls.operation = -1;
 
@@ -558,39 +558,7 @@
 						downloadLink.click()
 					}
 
-					let inputfile = document.createElement('input')
-					inputfile.type = 'file'
-					inputfile.accept = '.json'
-					inputfile.addEventListener('change', (evt) => {
-						let file = evt.target.files[0]
-						if (file == null) {
-							return
-						}
-						let fileReader = new FileReader()
-						fileReader.onload = () => {
-							let data = JSON.parse(fileReader.result)
-							lPos.v0.x = data.modellist.line_locationx_1
-							lPos.v0.y = data.modellist.line_locationy_1
-                            lPos.v1.x = data.modellist.line_locationx_2
-							lPos.v1.y = data.modellist.line_locationy_2
-                            lPos.v2.x = data.modellist.line_locationx_3
-                            lPos.v2.y = data.modellist.line_locationy_3
-                            lPos.v3.x = data.modellist.line_locationx_4
-                            lPos.v3.y = data.modellist.line_locationy_4
-
-							eyeSet[4] = data.modellist.RXNA
-                            eyeSet[0] = data.modellist.LXNA
-                            eyeSet[5] = data.modellist.RXPA
-                            eyeSet[1] = data.modellist.LXPA
-                            eyeSet[6] = data.modellist.RYNA
-                            eyeSet[3] = data.modellist.LYNA
-                            eyeSet[2] = data.modellist.RYPA
-							eyeSet[7] = data.modellist.LYPA
-
-							updateBounding()
-						}
-						fileReader.readAsText(file)
-					})
+					
 
 					controls.upload = function (evt) {
 						if (mesh == null) {
@@ -601,6 +569,59 @@
 					}
 				}
 
+                let setData = (data) => {
+                    
+                    lPos.v0.x = data.modellist.line_locationx_1
+                    lPos.v0.y = data.modellist.line_locationy_1
+                    lPos.v1.x = data.modellist.line_locationx_2
+                    lPos.v1.y = data.modellist.line_locationy_2
+                    lPos.v2.x = data.modellist.line_locationx_3
+                    lPos.v2.y = data.modellist.line_locationy_3
+                    lPos.v3.x = data.modellist.line_locationx_4
+                    lPos.v3.y = data.modellist.line_locationy_4
+
+                    eyeSet[4] = data.modellist.RXNA
+                    eyeSet[0] = data.modellist.LXNA
+                    eyeSet[5] = data.modellist.RXPA
+                    eyeSet[1] = data.modellist.LXPA
+                    eyeSet[6] = data.modellist.RYNA
+                    eyeSet[3] = data.modellist.LYNA
+                    eyeSet[2] = data.modellist.RYPA
+                    eyeSet[7] = data.modellist.LYPA
+
+                    updateBounding()
+				}
+
+                let readLocalJson = () => {
+                    let xhr = new XMLHttpRequest()
+                    let url = './data.json'
+                    xhr.open('get', url)
+                    xhr.responseType = 'json'
+                    xhr.send()
+                    xhr.onload = () => {
+						let res = xhr.response
+						console.log(res)
+                        setData(res)
+                    }
+                }
+
+                let inputfile = document.createElement('input')
+                inputfile.type = 'file'
+                inputfile.accept = '.json'
+                inputfile.addEventListener('change', (evt) => {
+
+                    let file = evt.target.files[0]
+                    if (file == null) {
+                        return
+                    }
+                    let fileReader = new FileReader()
+					fileReader.onload = () => {
+                        let data = JSON.parse(fileReader.result)
+                        setData(data)
+                    }
+                    fileReader.readAsText(file)
+                })
+
 				const modelFile = [
 					'models/mmd/kizunaai/kizunaai.pmx',
 					'models/mmd/kokoro/kokoro.pmx',
@@ -609,7 +630,6 @@
 
 				function initCharater() {
 					const kiaraList = {
-						none: -1,
 						kizunaAI: 0,
 						kokoro: 1,
 						物述有栖: 2
@@ -1112,6 +1132,8 @@
 				operations.open();
 				tools.open();
 
+				onChangeCharacter()
+                readLocalJson()
 			}
 
 		}
@@ -1230,6 +1252,7 @@
 
 			init();
 			animate()
+			
 		});
 	</script>
 	<style>
