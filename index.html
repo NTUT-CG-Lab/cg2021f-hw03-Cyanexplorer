@@ -90,6 +90,7 @@
 		import { MMDAnimationHelper } from './threejs/jsm/animation/MMDAnimationHelper.js';
 
 		const scale = 30;
+        const rad = Math.PI / 180
 
 		let camera, scene, renderer, effect, lineGroup, cameracontrols
 		let mesh, helper, center;
@@ -98,7 +99,9 @@
 		let mouse = new THREE.Vector2(0, 0)
 		let container = null
 		let maps = null
+
 		let rendermode = 0
+
 		let leye = new THREE.Vector3(0, 0, 0)
 		let reye = new THREE.Vector3(0, 0, 0)
 		let head = new THREE.Vector3(0, 0, 0)
@@ -550,36 +553,54 @@
 					document.onkeypress = (evt) => {
 						evt.preventDefault()
 						let code = evt.charCode
-						if (code == 113 && prepared) {
+						console.log(code)
+
+						if (!prepared) {
+							return
+						}
+
+						if (code == 113 && isleftEye) {
 							eyeSet[rendermode + 4].copy(eyeSet[rendermode])
 						}
-						else if (code == 97 && prepared) {
+                        else if (code == 113 && !isleftEye) {
+                            eyeSet[rendermode].copy(eyeSet[rendermode + 4])
+                        }
+						else if (code == 97) {
 							controls.characters = (controls.characters + modelFile.length - 1) % modelFile.length
 							console.log(controls.characters)
 							onChangeCharacter()
 						}
-						else if (code == 100 && prepared) {
+						else if (code == 100) {
 							controls.characters = (controls.characters + modelFile.length + 1) % modelFile.length
 							onChangeCharacter()
 						}
-						else if (code == 49 && prepared) {
+						else if (code == 49) {
 							let tmp = (rendermode + 3) % 4
 							if (!isleftEye) {
 								tmp = rendermode
 							}
+							else {
+                                isleftEye = !isleftEye
+                            }
+							
+							
 							maps[tmp].click()
 						}
-						else if (code == 50 && prepared) {
+						else if (code == 50) {
 							let tmp = (rendermode + 5) % 4
 							if (isleftEye) {
 								tmp = rendermode
 							}
+							else {
+                                isleftEye = !isleftEye
+                            }
+                            
 							maps[tmp].click()
 						}
-						else if (code == 115 && prepared) {
+						else if (code == 115) {
 							controls.download()
 						}
-						console.log(code)
+						
 					}
 
 					operations.add(controls, 'operation', func).onChange(onChangeOperation)
@@ -922,10 +943,10 @@
 
 							if (absX > absY) {
 								eyeSet[rendermode + offset].x = 0
-								eyeSet[rendermode + offset].y = offsetPos.x / Math.PI / 2
+                                eyeSet[rendermode + offset].y = offsetPos.x * 20
 							}
 							else if (absX < absY) {
-								eyeSet[rendermode + offset].x = -offsetPos.y / Math.PI / 2
+                                eyeSet[rendermode + offset].x = -offsetPos.y * 20
 								eyeSet[rendermode + offset].y = 0
 							}
 							else {
@@ -1048,15 +1069,17 @@
 		}
 
 		function render() {
+			
+
 			if (mesh != null && prepared) {
 
-				bone0.rotation.x = Math.PI * 2 * eyeSet[rendermode].x
-				bone0.rotation.y = Math.PI * 2 * eyeSet[rendermode].y
-				bone0.rotation.z = Math.PI * 2 * eyeSet[rendermode].z
+                bone0.rotation.x = eyeSet[rendermode].x * rad
+                bone0.rotation.y = eyeSet[rendermode].y * rad
+                bone0.rotation.z = eyeSet[rendermode].z * rad
 
-				bone1.rotation.x = Math.PI * 2 * eyeSet[rendermode + 4].x
-				bone1.rotation.y = Math.PI * 2 * eyeSet[rendermode + 4].y
-				bone1.rotation.z = Math.PI * 2 * eyeSet[rendermode + 4].z
+                bone1.rotation.x = eyeSet[rendermode + 4].x * rad
+                bone1.rotation.y = eyeSet[rendermode + 4].y * rad
+                bone1.rotation.z = eyeSet[rendermode + 4].z * rad
 
 			}
 
@@ -1073,15 +1096,15 @@
 			move2Target(head, 10)
 
 			for (let i = 0; i < 4; i++) {
-
+                
 				if (mesh != null) {
-					bone0.rotation.x = Math.PI * 2 * eyeSet[i].x
-					bone0.rotation.y = Math.PI * 2 * eyeSet[i].y
-					bone0.rotation.z = Math.PI * 2 * eyeSet[i].z
+					bone0.rotation.x = eyeSet[i].x * rad
+                    bone0.rotation.y = eyeSet[i].y * rad
+                    bone0.rotation.z = eyeSet[i].z * rad
 
-					bone1.rotation.x = Math.PI * 2 * eyeSet[i + 4].x
-					bone1.rotation.y = Math.PI * 2 * eyeSet[i + 4].y
-					bone1.rotation.z = Math.PI * 2 * eyeSet[i + 4].z
+                    bone1.rotation.x = eyeSet[i + 4].x * rad
+                    bone1.rotation.y = eyeSet[i + 4].y * rad
+                    bone1.rotation.z = eyeSet[i + 4].z * rad
 				}
 
 
